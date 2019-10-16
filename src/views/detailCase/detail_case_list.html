@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<!-- <html> -->
+<head>
+    <title th:text="${title}">案件列表</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> 
+    <link rel="stylesheet" type="text/css" href="./css/element-ui/theme-chalk/index.css">
+    <script type="text/javascript" src="./js/vue/vue.min.js"></script>
+    <script type="text/javascript" src="./js/element-ui/lib/index.js"></script>
+    <script type="text/javascript" src="./js/jquery.min.js"></script>
+    <style>
+        .title-name {
+            text-align: center;
+            padding: 15px 0;
+        }
+        .tip-line {
+            display: flex;
+            width: 96%;
+            margin: 0 auto;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0 5px;
+        }
+        #out-table, .page-line {
+            width: 96%;
+            margin: 0 auto;
+        }
+        body .el-table th.gutter {
+            display: table-cell!important;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="detail-case">
+        <div class="title-name">{{requestUrlObj.titlename}}案件列表</div>
+        <div class="tip-line">
+            <div>
+                统计日期：{{requestUrlObj.startmonth}}至{{requestUrlObj.endmonth}}
+            </div>
+            <div style="position: relative">
+                <el-button type="primary" size="small" @click="exportCurrentPage()">导出当前页</el-button>
+                <el-button type="primary" size="small" @click="exportAll()">导出全部</el-button>
+            </div>
+        </div>
+        <el-table id="out-table" :data="tableData" max-height="575" border stripe highlight-current-row
+                  v-loading="loading"
+                  element-loading-text="拼命加载中"
+                  element-loading-spinner="el-icon-loading"
+                  element-loading-background="rgba(0, 0, 0, 0.6)">
+            <el-table-column prop="baah" label="案号"></el-table-column>
+            <el-table-column prop="jbfy" label="经办法院"></el-table-column>
+            <el-table-column prop="cbbmbs" label="承办庭室"></el-table-column>
+            <el-table-column prop="cbr" label="承办人" width="85"></el-table-column>
+            <el-table-column prop="saly" label="收案来源" width="125"></el-table-column>
+            <el-table-column prop="larq" label="立案日期" :formatter="larqFormatter" width="100"></el-table-column>
+            <el-table-column prop="laay" label="案由"></el-table-column>
+            <el-table-column prop="jarq" label="结案日期" :formatter="jarqFormatter" width="100"></el-table-column>
+            <el-table-column prop="jafs" label="结案方式"></el-table-column>
+        </el-table>
+        <div class="page-line">
+            <el-pagination
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                    :current-page="currentpage"
+                    :page-sizes="[20, 30, 40, 50]"
+                    :page-size="10"
+                    layout="total, sizes, prev, pager, next"
+                    :total="total">
+            </el-pagination>
+        </div>
+    </div>
+</body>
+<script src="./js/excel/FileSaver.js"></script>
+<script src="./js/excel/Blob.js"></script>
+<script src="./js/excel/xlsx.core.min.js"></script>
+<script src="./js/excel/Export2Excel.js"></script>
+<script type="text/javascript">
+    new Vue({
+        el: '#app',
+        data: {
+            titlename: '',
+            startmonth: '',
+            endmonth: '',
+            loading: false,
+            tableData: [],
+            tableAllData: [],
+            currentpage: 1,
+            total: 0,
+            showcount: 20,
+            requestUrlObj: {},
+            fyjb: ''
+        },
+        created() {
+            this.requestUrlObj = this.GetRequest();
+            this.showcount = Number(this.requestUrlObj.showcount);
+            this.currentpage = Number(this.requestUrlObj.currentpage);
+            var params = {
+                zt: '新收',
+                aydm: '',
+                case_title: '行政',
+                startmonth: this.requestUrlObj.startmonth,
+                endmonth: this.requestUrlObj.endmonth,
+                currentpage: this.currentpage,
+                showcount: this.showcount,
+                fycode: this.requestUrlObj.fycode,
+                isby: this.requestUrlObj.isby,
+                userId: this.requestUrlObj.userId,
+                reportid: this.requestUrlObj.reportid,
+                type: this.requestUrlObj.type,
+                types: this.requestUrlObj.types,
+                reportname: this.requestUrlObj.reportname,
+                titlename: this.requestUrlObj.titlename,
+                fyjb: '',
+                sfqb: '',
+                spcx: '',
+                qtcs: '',
+                cbbmbs: '',
+                columnid: this.requestUrlObj.columnid
+            };
+            console.log(this.GetRequest());
+            this.getCaseList(params);
+        },
+        methods: {
+            getCaseList(params) {
+                this.loading = true;
+                this.jbxxlist(params);
+            },
+            jbxxlist(params) {
+                let _self = this;
+                $.ajax({
+                    type: "post",
+                    url: "http://chart-center/jxcc/jbxxlist",
+                    async: true,
+                    datatype: "json",
+                    data: params,
+                    success: function(res) {
+                        _self.loading = false;
+                        if (res.code === 1) {
+                            _self.tableAllData = res.data;
+                            _self.tableData = _self.tableAllData.slice(0, 20);
+                            _self.total = res.data.length;
+                        }
+                    }
+
+                }); 
+            },
+            larqFormatter(row) {
+                if (row.larq) {
+                return row.larq.substring(0, 10);
+                } else {
+                    return '';
+                }
+            },
+            jarqFormatter(row) {
+                if (row.jarq) {
+                return row.jarq.substring(0, 10);
+                } else {
+                    return '';
+                }
+            },
+            exportCurrentPage() {
+                this.excelTable(this.tableData);  //把data里的tableData存到list
+            },
+            formatJson(filterVal, jsonData) {
+                return jsonData.map(v => filterVal.map(j => v[j]));
+            },
+            exportAll() {
+                this.excelTable(this.tableAllData);
+            },
+            excelTable(tableData) {
+                const tHeader = ['案号', '经办法院', '承办庭室', '承办人', '收案来源', '立案日期', '案由', '结案日期', '结案方式'];  // 设置Excel的表格第一行的标题
+                const title = ['', '', '', '', '', '', '', '', ''];
+                const filterVal = ['baah', 'jbfy', 'cbbmbs', 'cbr', 'saly', 'larq', 'laay', 'jarq', 'jafs'];  // index、nickName、name是tableData里对象的属性
+                const list = tableData;  //把data里的tableData存到list
+                const data = this.formatJson(filterVal, list);
+                data.map(item => {
+                    item.map((i, index) => {
+                        if (!i) {
+                            item[index] = ''
+                        }
+                    });
+                });
+                const merges = ['A1:I1']; //合并单元格
+                export_json_to_excel({
+                    title: title,
+                    header: tHeader,
+                    data,
+                    merges,
+                    filename: this.requestUrlObj.titlename + '案件',
+                    autoWidth: true,
+                    bookType: 'xlsx'
+                });
+            },
+            handleSizeChange(val) {
+                console.log(val);
+                this.loading = true;
+                if (this.tableAllData.length) {
+                    this.showcount = val;
+                    this.tableData = this.tableAllData.slice(0, val);
+                    this.loading = false;
+                }
+            },
+            handleCurrentChange(val) {
+                if (this.tableAllData.length) {
+                    this.currentpage = val;
+                    if (val === 1) {
+                        this.tableData = this.tableAllData.slice(0, Number(this.showcount));
+                    } else {
+                        this.tableData = this.tableAllData.slice((val - 1) * Number(this.showcount), val *
+                            Number(this.showcount) - 1);
+                    }
+                }
+            },
+            GetRequest () {
+                var url = location.search; //获取url中"?"符后的字串
+                var theRequest = new Object();
+                if (url.indexOf("?") != -1) {
+                    var str = url.substr(1);
+                    var strs = str.split("&");
+                    for(var i = 0; i < strs.length; i ++) {
+                        // theRequest[strs[i].split("=")[0]] = unescape(strs[i].split("=")[1]);
+                        theRequest[strs[i].split("=")[0]] = unescape(strs[i].split("=")[1]);
+                    }
+                }
+                return theRequest;
+            }
+        }
+    })
+</script>
+</html>
