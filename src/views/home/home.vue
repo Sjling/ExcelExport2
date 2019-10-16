@@ -84,7 +84,7 @@ export default {
             let _self = this;
             $.ajax({
                     type: "post",
-                    url: "http://chart-center/jxcc/jbxxlist",
+                    url: "http://chart-center/jxcc/jbxxlist", // 修改成自己的url
                     async: true,
                     datatype: "json",
                     data: option,
